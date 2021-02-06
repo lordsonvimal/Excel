@@ -51,6 +51,6 @@ class Excel:
 # Sample to test the above fns
 # This should go to a separate file
 # Adding it here for now
-excel = Excel("test.xlsx", "new.xlsx")
-excel.update_sheets()
-excel.save()
+# excel = Excel("test.xlsx", "new.xlsx")
+# excel.update_sheets()
+# excel.save()
