@@ -28,4 +28,4 @@ Automate excel operations using python.
 ##### 3. Go inside project root directory. It should automatically switch to use `python 3.8.7`
 ##### 4. `pip install pipenv`
 ##### 5. Run `pipenv install`
-##### 6. Run `python excel.py`  
+##### 6. Run `python app.py`  
