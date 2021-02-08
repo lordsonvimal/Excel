@@ -3,7 +3,9 @@ from tkinter import scrolledtext
 from tkinter import filedialog
 from tkinter import messagebox
 import os, re
-# from src.excel.excel import Excel
+import threading
+
+from src.specification.spec_process import Spec
 
 window_width = 500
 window_height = 500
@@ -68,7 +70,7 @@ class UI:
         frame = tk.Frame(self.window, width=window_width, height=window_width-exec_height)
         frame.pack(expand=True, fill=tk.X)
 
-        label = tk.Label(frame, borderwidth=2, justify=tk.LEFT, text="Enter domains", fg="#aaaaaa", font=("Calibri", 12))
+        label = tk.Label(frame, borderwidth=2, justify=tk.LEFT, text="Enter specifications to create", fg="#aaaaaa", font=("Calibri", 12))
         label.grid(sticky=tk.N+tk.S+tk.W, row=0, column=0, padx=5, pady=(0, 5), ipady=2)
 
         self.input_spec = tk.Entry(frame, textvariable=self.input_spec_str, width=38)
@@ -108,19 +110,21 @@ class UI:
 
     def get_validation_message(self):
         if (len(self.input_spec_str.get()) == 0 and not os.path.exists(self.filename)):
-            return "Select a valid template in xlsx format and enter domain names to start processing"
+            return "Select a valid template in xlsx format and enter specifications to start processing"
         elif not os.path.exists(self.filename):
             return "Select a valid template in xlsx format to start processing"
-        return "Enter domain name to start processing"
+        return "Enter specification to start processing"
 
     def popup_execute(self):
         spec_gen = re.sub(r"\s+", "", self.input_spec_str.get().strip().upper(), flags=re.UNICODE)
-        message_text = "Do you want to create specifications for the domains: " + spec_gen + "?"
-        res=messagebox.askquestion("Domains", message_text)
+        message_text = "Do you want to create specifications: " + spec_gen + "?"
+        res=messagebox.askquestion("Specifications to be created", message_text)
         if res == "yes":
-            self.append_message("Domains Selected: " + spec_gen)
+            self.append_message("Specifications Entered: " + spec_gen)
             self.append_message("Starting Process: ")
-            self.append_message("")
+            spec = Spec(self.filename, self.input_spec_str.get(), self.append_message)
+            threading.Thread(target=spec.process).start()
+
 
     def execute(self):
         if self.validate():

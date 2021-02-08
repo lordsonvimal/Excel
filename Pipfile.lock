@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "296ccd9f327b746a3c2d050a5d1a27d251711ebb669560f1eb32e883f02c0171"
+            "sha256": "0e522c9ebd23d4e23e0fc4f04afb06535827606a0dfa0e9929b5ef5c0acd1e10"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -389,8 +389,16 @@
                 "sha256:eee454d3aa3955d0c0069a0f265fea47f1e1384c35a110a95efed358eb6e1562",
                 "sha256:f1e9424e9aa3834ea27cc12f9c6ea8ace5da18ee60a720bb3a85b2f733f41782"
             ],
-            "markers": "python_version >= '3.7'",
+            "index": "pypi",
             "version": "==1.20.0"
+        },
+        "numpy-financial": {
+            "hashes": [
+                "sha256:bae534b357516f12258862d1f0181d911032d0467f215bfcd1c264b4da579047",
+                "sha256:f84341bc62b2485d5604a73d5fac7e91975b4b9cd5f4a5a9cf608902ea00cb40"
+            ],
+            "markers": "python_version >= '3.5'",
+            "version": "==1.0.0"
         },
         "openpyxl": {
             "hashes": [
@@ -459,6 +467,14 @@
                 "sha256:9649af414d74d4df115d5d718f82acb59c9d418196b7b4290ed47a12ce62df56"
             ],
             "version": "==0.7.5"
+        },
+        "portable-spreadsheet": {
+            "hashes": [
+                "sha256:0e299f0862969eca0912eea6ce5438550f82c17c98b1db7066a46d065e1e5a9e",
+                "sha256:a34a70f41c63514d1609479d84282e7bccafa7ea72db528b7744126bf2d86d5a"
+            ],
+            "index": "pypi",
+            "version": "==2.1.8"
         },
         "prometheus-client": {
             "hashes": [

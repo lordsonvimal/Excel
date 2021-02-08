@@ -10,6 +10,8 @@ xlsxwriter = "*"
 ipython = "*"
 jupyter = "*"
 pyyaml = "*"
+portable-spreadsheet = "*"
+numpy = "*"
 
 [dev-packages]
 
