@@ -1,22 +1,9 @@
 import pandas as pd
-# import portable_spreadsheet as ps
-# import openpyxl
-# from openpyxl import load_workbook
-# from openpyxl import Workbook
-# from openpyxl.styles import Alignment
-# from openpyxl.utils import get_column_letter
 import numpy as np
-# from pathlib import Path
-# import itertools
-# from pandasql import *
-# pysqldf = lambda q:sqldf(q,globals())
 import os
 from openpyxl import load_workbook
-from openpyxl.styles import Alignment
-
-# from re import match
-
-from ..excel.excel import ExcelSheet
+from openpyxl.styles import Alignment, PatternFill, NamedStyle, Font
+from openpyxl.styles.borders import Border, Side
 
 class Spec:
     def __init__(self, file_path, spec_gen, append_message):
@@ -30,17 +17,19 @@ class Spec:
         self.sdtm32 = None
         self.sdtm33 = None
         self.sdtm32_02 = None
-        self.book = load_workbook(file_path)
+#         self.book = load_workbook(file_path)
+#         self.xlsx = pd.ExcelFile(file_path, engine="openpyxl")
 
     def get_domains(self):
         srdm_list = [filename for filename in os.listdir(self.file_dir) if filename.startswith(self.spec_gen) and filename.endswith('.xlsx')]
+        print(srdm_list)
         df_srdm=[]
         cols = [17, 14, 19, 13]
 
         for i in range(len(srdm_list)):
             srdm00 = srdm_list[i]
-            srdm01 = pd.read_excel(os.path.join(self.file_dir, srdm_list[i]), sheet_name=3, skiprows=1,
-                              usecols=cols, names=['SType','SLength','SName','SLabel'])
+            print(os.path.join(self.file_dir, srdm_list[i]))
+            srdm01 = pd.read_excel(os.path.join(self.file_dir, srdm_list[i]), engine="openpyxl", sheet_name=3, skiprows=1, usecols=cols, names=['SType','SLength','SName','SLabel'])
             srdm01 = srdm01.loc[srdm01['SName'].str.contains('_')]
             srdm01['SType']= np.where(srdm01['SType'].str.upper() == 'VARCHAR2','Character',srdm01['SType'].str.title())
             n_col = (srdm01['SName'].str.split("_").apply(len)).max()
@@ -185,9 +174,16 @@ class Spec:
 
     def save_sheet(self):
         self.message("Exporting. Please wait...")
+#         dfs = []
+#         for sheet in self.xlsx.sheet_names:
+#             dfs.append(self.xlsx.parse(sheet_name=sheet, index_col=0))
+#
+#         self.writer = pd.ExcelWriter(self.file_path, engine='xlsxwriter')
+#         for df in dfs:
+#             df.to_excel(self.writer, sheet_name=sheet)
         self.writer = pd.ExcelWriter(self.file_path, engine="openpyxl", mode="a")
         workbook = self.writer.book
-
+#
         for i in range(len(self.domains)):
             domain = self.domains[i]
 #             sheet = ExcelSheet(self.s_sdtm, domain, self.writer)
@@ -211,24 +207,43 @@ class Spec:
             self.df['SRDMOrigin'] = self.df['Name'].map(self.df1.set_index('Name')['SOrgn'])
             self.df['Origin'] = self.df['Name'].map(self.df1.set_index('Name')['Origin'])
             self.df['Length'] = self.df['Name'].map(self.df1.set_index('Name')['Length'])
-            self.df.to_excel(self.writer, sheet_name=domain, index=False)
-            worksheet = self.writer.sheets[domain]
-#             worksheet.column_dimensions['Name'].width = 40
-#             worksheet.column_dimensions['Description'].width = 40
-#             worksheet.column_dimensions['CodeListRef'].width = 40
-#             worksheet.column_dimensions['Label'].width = 40
-#             worksheet.column_dimensions['Length'].width = 40
-#             worksheet.column_dimensions['Sequence'].width = 40
-#             worksheet.column_dimensions['Supplimentary'].width = 40
-#             worksheet.column_dimensions['Comments'].width = 40
-#             worksheet.column_dimensions['Type'].width = 40
-#             worksheet.column_dimensions['Origin'].width = 40
-#             worksheet.column_dimensions['Core'].width = 40
-#             worksheet.column_dimensions['ProgrammerRule'].width = 40
-#             worksheet.column_dimensions['Submission'].width = 40
-#             worksheet.column_dimensions['SRDMOrigin'].width = 40
-#             worksheet.column_dimensions['Alias'].width = 40
-            print(worksheet)
+            if not self.df.empty:
+                self.df.to_excel(self.writer, sheet_name=domain, index=False)
+                worksheet = self.writer.sheets[domain]
+                self.format_all_cells(worksheet, domain, "A", 20)
+                self.format_all_cells(worksheet, domain, "B", 40)
+                self.format_all_cells(worksheet, domain, "C", 20)
+                self.format_all_cells(worksheet, domain, "D", 20)
+                self.format_all_cells(worksheet, domain, "E", 12)
+                self.format_all_cells(worksheet, domain, "F", 12)
+                self.format_all_cells(worksheet, domain, "G", 15)
+                self.format_all_cells(worksheet, domain, "H", 12)
+                self.format_all_cells(worksheet, domain, "I", 12)
+                self.format_all_cells(worksheet, domain, "J", 12)
+                self.format_all_cells(worksheet, domain, "K", 12)
+                self.format_all_cells(worksheet, domain, "L", 40)
+                self.format_all_cells(worksheet, domain, "M", 12)
+                self.format_all_cells(worksheet, domain, "N", 20)
+                self.format_all_cells(worksheet, domain, "O", 12)
+                self.format_all_cells(worksheet, domain, "P", 20)
+                self.format_header_cells(worksheet)
+#                 worksheet.column_dimensions['A'].width = 20
+#                 worksheet.column_dimensions['B'].width = 40
+#                 worksheet.column_dimensions['C'].width = 40
+#                 worksheet.column_dimensions['D'].width = 40
+#                 worksheet.column_dimensions['E'].width = 40
+#                 worksheet.column_dimensions['F'].width = 40
+#                 worksheet.column_dimensions['G'].width = 40
+#                 worksheet.column_dimensions['H'].width = 40
+#                 worksheet.column_dimensions['I'].width = 40
+#                 worksheet.column_dimensions['J'].width = 40
+#                 worksheet.column_dimensions['K'].width = 40
+#                 worksheet.column_dimensions['L'].width = 40
+#                 worksheet.column_dimensions['M'].width = 40
+#                 worksheet.column_dimensions['N'].width = 40
+#                 worksheet.column_dimensions['O'].width = 40
+#                 worksheet.column_dimensions['P'].width = 40
+                print(worksheet)
 #             for (col_name, columnData) in self.df.iteritems():
 #                 for cell in self.writer.sheets[domain][col_name]:
 #                     cell.alignment = Alignment(wrap_text=True)
@@ -238,6 +253,25 @@ class Spec:
         self.writer.save()
         self.writer.close()
         self.message("Successfully exported sheet")
+
+    def format_all_cells(self, sheet, domain, col_index, width):
+        cell_style = NamedStyle(name=domain+col_index, alignment=Alignment(wrap_text=True))
+        for cell in sheet[col_index]:
+            cell.style = cell_style
+#         for column_cells in sheet.columns:
+#             print(column_cells)
+#             print(column_cells[0].column)
+#             print(sheet.column_dimensions[str(column_cells[0].column)])
+        sheet.column_dimensions[col_index].width = width
+
+    def format_header_cells(self, sheet):
+        thin_border = Border(left=Side(style='thin'), right=Side(style='thin'),
+                    top=Side(style='thin'), bottom=Side(style='thin'))
+        for rows in sheet.iter_rows(min_row=1, max_row=1, min_col=1):
+            for cell in rows:
+              cell.fill = PatternFill(start_color="eeeeee", end_color="dddddd", fill_type = "solid")
+              cell.font = Font(bold=True)
+              cell.border = thin_border
 
     def process(self):
         self.get_domains()

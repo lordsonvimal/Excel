@@ -5,13 +5,13 @@ name = "pypi"
 
 [packages]
 pandas = "*"
-openpyxl = "*"
 xlsxwriter = "*"
 ipython = "*"
 jupyter = "*"
 pyyaml = "*"
 portable-spreadsheet = "*"
 numpy = "*"
+openpyxl = "*"
 
 [dev-packages]
 
