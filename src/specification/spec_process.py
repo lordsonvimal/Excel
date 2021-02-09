@@ -11,6 +11,9 @@ import numpy as np
 # from pandasql import *
 # pysqldf = lambda q:sqldf(q,globals())
 import os
+from openpyxl import load_workbook
+from openpyxl.styles import Alignment
+
 # from re import match
 
 from ..excel.excel import ExcelSheet
@@ -27,7 +30,7 @@ class Spec:
         self.sdtm32 = None
         self.sdtm33 = None
         self.sdtm32_02 = None
-        self.writer = pd.ExcelWriter(file_path, engine="xlsxwriter")
+        self.book = load_workbook(file_path)
 
     def get_domains(self):
         srdm_list = [filename for filename in os.listdir(self.file_dir) if filename.startswith(self.spec_gen) and filename.endswith('.xlsx')]
@@ -50,7 +53,12 @@ class Spec:
         self.domainlist = np.unique([x[:2] for x in self.df_srdm['SName'] if isinstance(x, str) and x.count('_') == 1]).tolist()
         self.domains = np.unique([x[:2] for x in self.df_srdm['SName'] if isinstance(x, str) and x.count('_') == 1]).tolist()
         self.df_srdm1 = self.df_srdm[((self.df_srdm['SName'].str.count('_')==1) | (self.df_srdm['V2'].str.contains('DTS'))) & (self.df_srdm['SType']!='Date')]
-        self.df_srdm1 = self.df_srdm1.groupby('V0').agg(SName=('SName','unique'), SType=('SType','unique'), SLength=('SLength','max'), SLabel=('SLabel','unique')).reset_index()
+
+
+
+        unique_chars = lambda x: ' '.join(x.unique())
+        unique_max = lambda x: x.max()
+        self.df_srdm2 = self.df_srdm1.groupby('V0').agg({'SName': unique_chars,'SType': unique_chars,'SLabel': unique_chars, 'SLength':unique_max}).reset_index()
         self.message("Domains Identified are: " + str(self.domains))
 
     def read_nextgen(self):
@@ -66,9 +74,8 @@ class Spec:
         self.message("Reading SDTMIG.xlsx")
         file_path = os.path.join(self.file_dir, "SDTMIG.xlsx")
         col_names = ['Version','Order','Class','Dataset','Vname','Name','Label','Type','CodeListRef','Role','Description','Core']
-        self.sdtm32 = pd.read_excel(file_path, sheet_name="SDTMIG v3.2",header=None, skiprows=1, names=col_names)
-        self.sdtm33 = pd.read_excel(file_path, sheet_name="SDTMIG v3.3",header=None, skiprows=1, names=col_names)
-        print(self.sdtm32)
+        self.sdtm32 = pd.read_excel(file_path, engine="openpyxl", sheet_name="SDTMIG v3.2",skiprows=1, names=col_names, usecols="A:L")
+        self.sdtm33 = pd.read_excel(file_path, sheet_name="SDTMIG v3.3",skiprows=1, names=col_names, usecols="A:L")
         self.message("Success Reading SDTMIG.xlsx")
 
     def get_unique_domains_from_sdtm(self):
@@ -89,8 +96,6 @@ class Spec:
 
         #Consolidated SDTM IG 3.2 and 3.3 (Only those domains that do not exist in 3.2)
         self.sdtm_meta = self.sdtm32.append(self.sdtm33,ignore_index=True)
-#         print(self.domain_32)
-#         print(self.domain_33)
 
         self.fval_in32 = [x for x in self.domains if x in self.domain_32] #Domain in 3.2
         self.fval_in33 = [x for x in self.domains if x in self.in33_not_in32] #Domain in 3.3
@@ -114,11 +119,9 @@ class Spec:
         self.message("Filtering desired columns")
         self.df_00 = ['All Classes']    #Create a list for filteration criteria based on 'Class' column.
         self.sdtm32_02=[]    #Create an empty list to append the data for all domains in fval_list
-#         print(self.sdtm_meta)
         for i in range(len(self.domains)):
             domain = self.domains[i]
             self.sdtm32_00 = self.sdtm_meta['Class'][self.sdtm_meta['Dataset'].isin([domain])].unique()    #To get the 'Class' of respective domain from fval.
-            print(self.sdtm32_00)
             self.df_00.append([x+'-General' for x in self.sdtm32_00][0])    #To get the Class with corresponding '-General' for filteration
             # To filter the dataframe with required data and class in 'All Classes' and corresponding '-General' Class.
             self.sdtm32_01 = self.sdtm_meta[np.logical_and(self.sdtm_meta['Dataset'].isna(), self.sdtm_meta['Class'].isin(self.df_00))]
@@ -137,7 +140,6 @@ class Spec:
         self.sdtm32_02['CodeListRef']= np.where(self.sdtm32_02['Name'].str.upper() == 'EPOCH','EPOCH',self.sdtm32_02['CodeListRef'])
         self.sdtm32_02['CodeListRef']= np.where(self.sdtm32_02['CodeListRef'].str.upper().isin(['MEDDRA','ISO 8601','ISO 3166-1 Alpha-3']),np.nan,self.sdtm32_02['CodeListRef'])
         self.message("Successfully filtered data")
-        print(self.sdtm32_02)
 
     def read_comm(self):
         self.message("Reading COMM file")
@@ -153,17 +155,89 @@ class Spec:
 
     def merge_data(self):
         self.message("Merging")
-#         print(self.sdtm32_02)
-        print(self.sdtm_00)
-        print(self.df_vcom)
-        self.s_sdtm = pd.merge(self.sdtm32_02, self.df_srdm1, left_on = 'Name', right_on='V0', how = 'left')
+        self.s_sdtm = pd.merge(self.sdtm32_02, self.df_srdm2, left_on = 'Name', right_on='V0', how = 'left')
         self.s_sdtm.head()
         self.message("Successfully merged data")
-        print(self.s_sdtm)
+
+    def f(self, row):
+        if row['Name'] == row['V0']:
+            if np.logical_or(row['Type'] == row['SType'], row['Label'] == row['SLabel']):
+                val = "Rename " + row['SName'] + " as " + row['Name']+"|"+row['SName']
+            else:
+                val = "Direct Move from "+row['SName']+" to " + row['Name']+"|"+row['SName']
+            return val
+
+    def rule(self):
+        self.message("Running rules engine")
+        self.s_sdtm['PRuleSOrgn'] = self.s_sdtm.apply(self.f, axis=1)
+        self.s_sdtm['PRule'] = np.where(self.s_sdtm['PRuleSOrgn'].isnull()
+                                   ,self.s_sdtm['Name'].map(self.df_vcom.set_index('Name')['ProgrammerRule'])
+                                   ,self.s_sdtm['PRuleSOrgn'].str.split('|', expand=True)[0])
+        self.s_sdtm['SOrgn'] = np.where(self.s_sdtm['PRuleSOrgn'].isnull()
+                                   ,self.s_sdtm['Name'].map(self.df_vcom.set_index('Name')['SRDMOrigin'])
+                                   ,self.s_sdtm['PRuleSOrgn'].str.split('|', expand=True)[1])
+        self.s_sdtm['SubCol'] = self.s_sdtm['Name'].map(self.df_vcom.set_index('Name')['Submission'])
+        self.s_sdtm['Origin'] = self.s_sdtm['Name'].map(self.df_vcom.set_index('Name')['Origin'])
+        self.s_sdtm['Length'] = self.s_sdtm['Name'].map(self.df_vcom.set_index('Name')['Length'])
+
+        self.s_sdtm[~self.s_sdtm['SOrgn'].isnull()]
+        self.message("Rules engine ran successfully")
 
     def save_sheet(self):
-        sheet = ExcelSheet(self.s_sdtm, "CM", self.writer)
+        self.message("Exporting. Please wait...")
+        self.writer = pd.ExcelWriter(self.file_path, engine="openpyxl", mode="a")
+        workbook = self.writer.book
+
+        for i in range(len(self.domains)):
+            domain = self.domains[i]
+#             sheet = ExcelSheet(self.s_sdtm, domain, self.writer)
+            self.df = pd.DataFrame(columns=['Name','Description','CodeListRef','Label','Length','Sequence',
+                                                                  'Supplimentary','Comments', 'Type', 'Origin', 'Core',
+                                                                  'ProgrammerRule', 'Submission', 'SRDMOrigin', 'Alias'])
+            self.df1 = self.s_sdtm[self.s_sdtm['Dataset'] == domain]
+            print("index: "+str(i))
+            print(self.df1)
+            self.df['Name'] = self.nextgen[self.nextgen['Dataset'] == domain]['Name'].to_numpy()
+            self.df['NgCore'] = self.df['Name'].map(self.nextgen[self.nextgen['Dataset'] == domain].set_index('Name')['Core'])
+            self.df['Sequence'] = self.df['Name'].map(self.nextgen[self.nextgen['Dataset'] == domain].set_index('Name')['Order'])
+            self.df['Description'] = self.df['Name'].map(self.df1.set_index('Name')['Description'])
+            self.df['Core'] = self.df['Name'].map(self.df1.set_index('Name')['Core'])
+            self.df['CodeListRef'] = self.df['Name'].map(self.df1.set_index('Name')['CodeListRef'])
+            self.df['Label'] = self.df['Name'].map(self.df1.set_index('Name')['Label'])
+            self.df['Type'] = self.df['Name'].map(self.df1.set_index('Name')['Type'])
+            self.df.assign(Supplimentary="0")
+            self.df.assign(Comments="0")
+            self.df['ProgrammerRule'] = self.df['Name'].map(self.df1.set_index('Name')['PRule'])
+            self.df['SRDMOrigin'] = self.df['Name'].map(self.df1.set_index('Name')['SOrgn'])
+            self.df['Origin'] = self.df['Name'].map(self.df1.set_index('Name')['Origin'])
+            self.df['Length'] = self.df['Name'].map(self.df1.set_index('Name')['Length'])
+            self.df.to_excel(self.writer, sheet_name=domain, index=False)
+            worksheet = self.writer.sheets[domain]
+#             worksheet.column_dimensions['Name'].width = 40
+#             worksheet.column_dimensions['Description'].width = 40
+#             worksheet.column_dimensions['CodeListRef'].width = 40
+#             worksheet.column_dimensions['Label'].width = 40
+#             worksheet.column_dimensions['Length'].width = 40
+#             worksheet.column_dimensions['Sequence'].width = 40
+#             worksheet.column_dimensions['Supplimentary'].width = 40
+#             worksheet.column_dimensions['Comments'].width = 40
+#             worksheet.column_dimensions['Type'].width = 40
+#             worksheet.column_dimensions['Origin'].width = 40
+#             worksheet.column_dimensions['Core'].width = 40
+#             worksheet.column_dimensions['ProgrammerRule'].width = 40
+#             worksheet.column_dimensions['Submission'].width = 40
+#             worksheet.column_dimensions['SRDMOrigin'].width = 40
+#             worksheet.column_dimensions['Alias'].width = 40
+            print(worksheet)
+#             for (col_name, columnData) in self.df.iteritems():
+#                 for cell in self.writer.sheets[domain][col_name]:
+#                     cell.alignment = Alignment(wrap_text=True)
+#             format = workbook.add_format({'text_wrap': True})
+#             worksheet.set_column('A:P', 40, format)
+
         self.writer.save()
+        self.writer.close()
+        self.message("Successfully exported sheet")
 
     def process(self):
         self.get_domains()
@@ -174,4 +248,5 @@ class Spec:
         self.set_desired_columns()
         self.read_comm()
         self.merge_data()
+        self.rule()
         self.save_sheet()
