@@ -1,4 +1,5 @@
 import tkinter as tk
+from tkinter import ttk
 from tkinter import scrolledtext
 from tkinter import filedialog
 from tkinter import messagebox
@@ -61,8 +62,8 @@ class UI:
         self.input_file = tk.Label(frame, borderwidth=2, text="Select a template file", fg="#aaaaaa", font=("Calibri", 12))
         self.input_file.grid(sticky=tk.N+tk.S+tk.W, row=0, column=0, padx=5, pady=5)
 
-        file_browse = tk.Button(frame, text="Select Template", command=self.browse, width=35)
-        file_browse.grid(row=0, column=1, padx=(0, 5), pady=5, ipady=2)
+        self.browse_template = ttk.Button(frame, text="Select Template", command=self.browse, width=36)
+        self.browse_template.grid(row=0, column=1, padx=(0, 5), pady=5, ipady=2)
 
         tk.Grid.columnconfigure(frame, 0, weight=1)
 
@@ -73,27 +74,27 @@ class UI:
         label = tk.Label(frame, borderwidth=2, justify=tk.LEFT, text="Enter specifications to create", fg="#aaaaaa", font=("Calibri", 12))
         label.grid(sticky=tk.N+tk.S+tk.W, row=0, column=0, padx=5, pady=(0, 5), ipady=2)
 
-        self.input_spec = tk.Entry(frame, textvariable=self.input_spec_str, width=38)
+        self.input_spec = ttk.Entry(frame, textvariable=self.input_spec_str, width=38)
         self.input_spec.grid(row=0, column=1, pady=(0, 5), padx=(0, 5))
 
         tk.Grid.columnconfigure(frame, 0, weight=1)
 
     def create_message(self):
-        self.output_message = scrolledtext.ScrolledText(self.window, state="disabled", font=("Calibri", 12))
+        self.output_message = scrolledtext.ScrolledText(self.window, state="disabled", font=("Calibri", 12), relief="solid", borderwidth=1)
         self.output_message.pack(expand=True, fill=tk.BOTH, padx=(5))
 
     def create_execute(self):
-        exec_btn = tk.Button(self.window, text="Execute", command=self.execute)
+        exec_btn = ttk.Button(self.window, text="Execute", command=self.execute)
         exec_btn.pack(expand=True, fill=tk.X, ipadx=10, ipady=10, padx=(4), pady=4)
 
     def browse(self):
         self.filename = filedialog.askopenfilename(initialdir = "/", title = "Select a Template", filetypes = (("Excel Files", "*.xlsx"),))
         if len(self.filename) > 0:
             wrapped = self.filename[0:35]+"..." if len(self.filename) > 40 else self.filename
-            self.input_file.config(text=wrapped)
+            self.browse_template.config(text=wrapped)
             self.append_message("Selected File: " + self.filename)
         else:
-            self.input_file.config(text="Select a template file")
+            self.browse_template.config(text="Select Template")
 
     def append_message(self, message, lines=1):
         self.output_message_lines += lines

@@ -12,6 +12,7 @@ pyyaml = "*"
 portable-spreadsheet = "*"
 numpy = "*"
 openpyxl = "*"
+pyinstaller = "*"
 
 [dev-packages]
 
