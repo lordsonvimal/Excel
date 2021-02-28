@@ -174,27 +174,17 @@ class Spec:
 
     def save_sheet(self):
         self.message("Exporting. Please wait...")
-#         dfs = []
-#         for sheet in self.xlsx.sheet_names:
-#             dfs.append(self.xlsx.parse(sheet_name=sheet, index_col=0))
-#
-#         self.writer = pd.ExcelWriter(self.file_path, engine='xlsxwriter')
-#         for df in dfs:
-#             df.to_excel(self.writer, sheet_name=sheet)
         self.writer = pd.ExcelWriter(self.file_path, engine="openpyxl", mode="a")
         workbook = self.writer.book
 #
         for i in range(len(self.domains)):
             domain = self.domains[i]
-#             sheet = ExcelSheet(self.s_sdtm, domain, self.writer)
             self.df = pd.DataFrame(columns=['Name','Description','CodeListRef','Label','Length','Sequence',
                                                                   'Supplimentary','Comments', 'Type', 'Origin', 'Core',
                                                                   'ProgrammerRule', 'Submission', 'SRDMOrigin', 'Alias'])
             self.df1 = self.s_sdtm[self.s_sdtm['Dataset'] == domain]
-            print("index: "+str(i))
-            print(self.df1)
             self.df['Name'] = self.nextgen[self.nextgen['Dataset'] == domain]['Name'].to_numpy()
-            self.df['NgCore'] = self.df['Name'].map(self.nextgen[self.nextgen['Dataset'] == domain].set_index('Name')['Core'])
+#             self.df['NgCore'] = self.df['Name'].map(self.nextgen[self.nextgen['Dataset'] == domain].set_index('Name')['Core'])
             self.df['Sequence'] = self.df['Name'].map(self.nextgen[self.nextgen['Dataset'] == domain].set_index('Name')['Order'])
             self.df['Description'] = self.df['Name'].map(self.df1.set_index('Name')['Description'])
             self.df['Core'] = self.df['Name'].map(self.df1.set_index('Name')['Core'])
@@ -207,6 +197,8 @@ class Spec:
             self.df['SRDMOrigin'] = self.df['Name'].map(self.df1.set_index('Name')['SOrgn'])
             self.df['Origin'] = self.df['Name'].map(self.df1.set_index('Name')['Origin'])
             self.df['Length'] = self.df['Name'].map(self.df1.set_index('Name')['Length'])
+            self.df_copy = self.df.copy(deep=True)
+            self.df_copy['NgCore'] = self.df['Name'].map(self.nextgen[self.nextgen['Dataset'] == domain].set_index('Name')['Core'])
             if not self.df.empty:
                 self.df.to_excel(self.writer, sheet_name=domain, index=False)
                 worksheet = self.writer.sheets[domain]
@@ -225,30 +217,9 @@ class Spec:
                 self.format_all_cells(worksheet, domain, "M", 12)
                 self.format_all_cells(worksheet, domain, "N", 20)
                 self.format_all_cells(worksheet, domain, "O", 12)
-                self.format_all_cells(worksheet, domain, "P", 20)
+#                 self.format_all_cells(worksheet, domain, "P", 20)
                 self.format_header_cells(worksheet)
-#                 worksheet.column_dimensions['A'].width = 20
-#                 worksheet.column_dimensions['B'].width = 40
-#                 worksheet.column_dimensions['C'].width = 40
-#                 worksheet.column_dimensions['D'].width = 40
-#                 worksheet.column_dimensions['E'].width = 40
-#                 worksheet.column_dimensions['F'].width = 40
-#                 worksheet.column_dimensions['G'].width = 40
-#                 worksheet.column_dimensions['H'].width = 40
-#                 worksheet.column_dimensions['I'].width = 40
-#                 worksheet.column_dimensions['J'].width = 40
-#                 worksheet.column_dimensions['K'].width = 40
-#                 worksheet.column_dimensions['L'].width = 40
-#                 worksheet.column_dimensions['M'].width = 40
-#                 worksheet.column_dimensions['N'].width = 40
-#                 worksheet.column_dimensions['O'].width = 40
-#                 worksheet.column_dimensions['P'].width = 40
-                print(worksheet)
-#             for (col_name, columnData) in self.df.iteritems():
-#                 for cell in self.writer.sheets[domain][col_name]:
-#                     cell.alignment = Alignment(wrap_text=True)
-#             format = workbook.add_format({'text_wrap': True})
-#             worksheet.set_column('A:P', 40, format)
+                self.format_core(worksheet)
 
         self.writer.save()
         self.writer.close()
@@ -258,10 +229,6 @@ class Spec:
         cell_style = NamedStyle(name=domain+col_index, alignment=Alignment(wrap_text=True))
         for cell in sheet[col_index]:
             cell.style = cell_style
-#         for column_cells in sheet.columns:
-#             print(column_cells)
-#             print(column_cells[0].column)
-#             print(sheet.column_dimensions[str(column_cells[0].column)])
         sheet.column_dimensions[col_index].width = width
 
     def format_header_cells(self, sheet):
@@ -272,6 +239,12 @@ class Spec:
               cell.fill = PatternFill(start_color="eeeeee", end_color="dddddd", fill_type = "solid")
               cell.font = Font(bold=True)
               cell.border = thin_border
+
+    def format_core(self, sheet):
+        for i, row in self.df_copy.iterrows():
+            if row["NgCore"] == "Model Permissible":
+                cell = sheet.cell(row=i, column=11)
+                cell.fill = PatternFill(start_color="ff2d00", end_color="ff2d00", fill_type = "solid")
 
     def process(self):
         self.get_domains()
