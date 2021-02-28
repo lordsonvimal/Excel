@@ -23,15 +23,11 @@ exe = EXE(pyz,
           a.zipfiles,
           a.datas,
           [],
-          name='app',
+          name='o-console',
           debug=False,
           bootloader_ignore_signals=False,
           strip=False,
           upx=True,
           upx_exclude=[],
           runtime_tmpdir=None,
-          console=False , icon='icon.ico')
-app = BUNDLE(exe,
-             name='app.app',
-             icon='icon.ico',
-             bundle_identifier=None)
+          console=True , icon='icon.ico')
