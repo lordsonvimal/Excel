@@ -4,6 +4,7 @@ import os
 from openpyxl import load_workbook
 from openpyxl.styles import Alignment, PatternFill, NamedStyle, Font
 from openpyxl.styles.borders import Border, Side
+import copy
 
 class Spec:
     def __init__(self, file_path, spec_gen, append_message):
@@ -17,6 +18,7 @@ class Spec:
         self.sdtm32 = None
         self.sdtm33 = None
         self.sdtm32_02 = None
+        self.output_path = os.path.join(self.file_dir, "VOL3SRDM_SDTM_MAPPING_SPECIFICATION_"+self.spec_gen+".xlsx")
 #         self.book = load_workbook(file_path)
 #         self.xlsx = pd.ExcelFile(file_path, engine="openpyxl")
 
@@ -67,6 +69,18 @@ class Spec:
         self.sdtm33 = pd.read_excel(file_path, sheet_name="SDTMIG v3.3",skiprows=1, names=col_names, usecols="A:L")
         self.message("Success Reading SDTMIG.xlsx")
 
+    def read_sdtm_meta(self):
+        self.message("Reading Consolidated Meta.xlsx")
+        file_path = os.path.join(self.file_dir, "Consolidated Meta.xlsx")
+        self.sdtm32 = pd.read_excel(file_path, sheet_name="P21SDTMIG3.2_Variables"
+                               ,usecols=['Order','Dataset','Name','Label', 'Type', 'Core', 'Codelist', 'Origin'])
+        self.sdtm32 = self.sdtm32[self.sdtm32.Core.isin(['Required', 'Expected', 'Permissible', 'Model Permissible'])]
+        self.sdtm33 = pd.read_excel(file_path, sheet_name="P21SDTMIG3.3_Variables"
+                               ,usecols=['Order','Dataset','Name','Label', 'Type', 'Core', 'Codelist', 'Origin'])
+        self.sdtm33 = self.sdtm33[self.sdtm33.Core.isin(['Required', 'Expected', 'Permissible', 'Model Permissible'])]
+        self.labelmeta = pd.read_excel(file_path, sheet_name="MetaLabelsCompare")
+        self.message("Success Reading Consolidated Meta.xlsx")
+
     def get_unique_domains_from_sdtm(self):
         self.message("Getting unique list of domains")
         domain_32 = self.sdtm32['Dataset'].unique()
@@ -89,6 +103,13 @@ class Spec:
         self.fval_in32 = [x for x in self.domains if x in self.domain_32] #Domain in 3.2
         self.fval_in33 = [x for x in self.domains if x in self.in33_not_in32] #Domain in 3.3
         self.neither_32_nor_33 = [x for x in self.domains if x not in self.domain_32 + self.domain_33] #Domains in neither 3.2 nor 3.3
+
+        self.sdtm32_02 = self.sdtm_meta[self.sdtm_meta['Dataset'].isin(self.domains)]
+        self.sdtm32_02['CodeListRef']= np.where(self.sdtm32_02['Codelist'].str.upper().isin(['MEDDRA','ISO 8601','ISO 3166-1 Alpha-3']),np.nan,self.sdtm32_02['Codelist'])
+        self.sdtm32_02['Type']= np.where(self.sdtm32_02['Type'].str.upper().isin(['FLOAT','INTEGER']),'Number','Character')
+        self.sdtm32_02.drop('Codelist', axis=1)
+        self.sdtm32_02['Core1'] = np.where(self.sdtm32_02['Core'].str.upper().isin(['EXPECTED','REQUIRED']),self.sdtm32_02['Core'].str[:3],'Perm')
+
 
         self.message("Domains in 3.2: "+str(self.fval_in32))
         self.message("Domains in 3.3: "+str(self.fval_in33))
@@ -133,13 +154,15 @@ class Spec:
     def read_comm(self):
         self.message("Reading COMM file")
         comm_files = [filename for filename in os.listdir(self.file_dir) if filename.endswith('_COMM.xlsx')]
+        self.df_vcom01 = []
         if len(comm_files) > 0:
             file = os.path.join(self.file_dir, comm_files[0])
             self.df_vcom = pd.read_excel(file, sheet_name="COMM")
-            for i in range(len(self.domains)):
-                domain = self.domains[i]
-                self.df_vcom['Domain'] = domain
-                self.df_vcom['Name'] = self.df_vcom['Name'].str.replace('__', domain)
+            for domain in self.domains:
+                self.df_com = copy.copy(self.df_vcom)
+                self.df_com['Domain'] = domain
+                self.df_com['Name'] = self.df_vcom['Name'].str.replace('__', domain)
+                self.df_vcom01.append(self.df_com)
         self.message("Successfully read comm file")
 
     def merge_data(self):
@@ -174,8 +197,9 @@ class Spec:
 
     def save_sheet(self):
         self.message("Exporting. Please wait...")
-        self.writer = pd.ExcelWriter(self.file_path, engine="openpyxl", mode="a")
-        workbook = self.writer.book
+        book = load_workbook(self.file_path)
+        self.writer = pd.ExcelWriter(self.output_path, engine="openpyxl")
+        self.writer.book = book
 #
         for i in range(len(self.domains)):
             domain = self.domains[i]
@@ -183,10 +207,10 @@ class Spec:
                                                                   'Supplimentary','Comments', 'Type', 'Origin', 'Core',
                                                                   'ProgrammerRule', 'Submission', 'SRDMOrigin', 'Alias'])
             self.df1 = self.s_sdtm[self.s_sdtm['Dataset'] == domain]
-            self.df['Name'] = self.nextgen[self.nextgen['Dataset'] == domain]['Name'].to_numpy()
+            self.df['Name'] = self.sdtm32_02[self.sdtm32_02['Dataset'] == domain]['Name'].to_numpy()
 #             self.df['NgCore'] = self.df['Name'].map(self.nextgen[self.nextgen['Dataset'] == domain].set_index('Name')['Core'])
-            self.df['Sequence'] = self.df['Name'].map(self.nextgen[self.nextgen['Dataset'] == domain].set_index('Name')['Order'])
-            self.df['Description'] = self.df['Name'].map(self.df1.set_index('Name')['Description'])
+            self.df['Sequence'] = self.df['Name'].map(self.sdtm32_02[self.sdtm32_02['Dataset'] == domain].set_index('Name')['Order'])
+#             self.df['Description'] = self.df['Name'].map(self.df1.set_index('Name')['Description'])
             self.df['Core'] = self.df['Name'].map(self.df1.set_index('Name')['Core'])
             self.df['CodeListRef'] = self.df['Name'].map(self.df1.set_index('Name')['CodeListRef'])
             self.df['Label'] = self.df['Name'].map(self.df1.set_index('Name')['Label'])
@@ -198,7 +222,7 @@ class Spec:
             self.df['Origin'] = self.df['Name'].map(self.df1.set_index('Name')['Origin'])
             self.df['Length'] = self.df['Name'].map(self.df1.set_index('Name')['Length'])
             self.df_copy = self.df.copy(deep=True)
-            self.df_copy['NgCore'] = self.df['Name'].map(self.nextgen[self.nextgen['Dataset'] == domain].set_index('Name')['Core'])
+            self.df_copy['NgCore'] = self.df['Name'].map(self.sdtm32_02[self.sdtm32_02['Dataset'] == domain].set_index('Name')['Core'])
             if not self.df.empty:
                 self.df.to_excel(self.writer, sheet_name=domain, index=False)
                 worksheet = self.writer.sheets[domain]
@@ -247,13 +271,17 @@ class Spec:
                 cell.fill = PatternFill(start_color="ff2d00", end_color="ff2d00", fill_type = "solid")
 
     def process(self):
-        self.get_domains()
-        self.read_nextgen()
-        self.read_sdtm_ig()
-        self.get_unique_domains_from_sdtm()
-#         self.append_data_for_all_domains()
-        self.set_desired_columns()
-        self.read_comm()
-        self.merge_data()
-        self.rule()
-        self.save_sheet()
+        try:
+            self.get_domains()
+    #         self.read_nextgen()
+    #         self.read_sdtm_ig()
+            self.read_sdtm_meta()
+            self.get_unique_domains_from_sdtm()
+    #         self.append_data_for_all_domains()
+    #         self.set_desired_columns()
+            self.read_comm()
+            self.merge_data()
+            self.rule()
+            self.save_sheet()
+        except Exception as e:
+            self.append_message("Caught error: "+str(e))

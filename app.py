@@ -5,6 +5,7 @@ from tkinter import filedialog
 from tkinter import messagebox
 import os, re
 import threading
+from string import digits
 
 from src.specification.spec_process import Spec
 
@@ -44,14 +45,16 @@ class UI:
         self.input_file = None
         self.input_spec = None
         self.input_spec_str = tk.StringVar()
-        self.input_spec_gen = ""
+        self.input_spec_gen_dir = ""
+        self.input_spec_gen = []
         self.output_message = None
         self.output_message_lines = 0
         self.create()
 
     def create(self):
         self.create_browser()
-        self.create_specification()
+        self.create_specification_browser()
+        self.create_user_defined_domain()
         self.create_message()
         self.create_execute()
 
@@ -62,22 +65,51 @@ class UI:
         self.input_file = tk.Label(frame, borderwidth=2, text="Select a template file", fg="#aaaaaa", font=("Calibri", 12))
         self.input_file.grid(sticky=tk.N+tk.S+tk.W, row=0, column=0, padx=5, pady=5)
 
-        self.browse_template = ttk.Button(frame, text="Select Template", command=self.browse, width=36)
+        self.browse_template = ttk.Button(frame, text="Select template file", command=self.browse, width=36)
         self.browse_template.grid(row=0, column=1, padx=(0, 5), pady=5, ipady=2)
 
         tk.Grid.columnconfigure(frame, 0, weight=1)
 
-    def create_specification(self):
+    def create_specification_browser(self):
         frame = tk.Frame(self.window, width=window_width, height=window_width-exec_height)
         frame.pack(expand=True, fill=tk.X)
 
-        label = tk.Label(frame, borderwidth=2, justify=tk.LEFT, text="Enter specifications to create", fg="#aaaaaa", font=("Calibri", 12))
+        label = tk.Label(frame, borderwidth=2, justify=tk.LEFT, text="Select specifications files", fg="#aaaaaa", font=("Calibri", 12))
         label.grid(sticky=tk.N+tk.S+tk.W, row=0, column=0, padx=5, pady=(0, 5), ipady=2)
 
-        self.input_spec = ttk.Entry(frame, textvariable=self.input_spec_str, width=38)
-        self.input_spec.grid(row=0, column=1, pady=(0, 5), padx=(0, 5))
+        self.browse_spec = ttk.Button(frame, text="Select specification file(s)", command=self.browse_spec, width=36)
+        self.browse_spec.grid(row=0, column=1, padx=(0, 5), pady=5, ipady=2)
 
         tk.Grid.columnconfigure(frame, 0, weight=1)
+
+    def create_user_defined_domain(self):
+        frame = tk.Frame(self.window, width=window_width, height=window_width-exec_height)
+        frame.pack(expand=True, fill=tk.X)
+
+        label = tk.Label(frame, borderwidth=2, justify=tk.LEFT, text="Enter additional domain", fg="#aaaaaa", font=("Calibri", 12))
+        label.grid(sticky=tk.N+tk.S+tk.W, row=0, column=0, padx=5, pady=(0, 5), ipady=2)
+
+        self.input_domain = ttk.Entry(frame, width=38)
+        self.input_domain.grid(row=0, column=1, padx=(0, 5), pady=5, ipady=2, ipadx=2)
+
+        tk.Grid.columnconfigure(frame, 0, weight=1)
+
+    def browse_spec(self):
+        files = filedialog.askopenfilenames(title="Choose specification files", filetypes=(("Excel Files", "*.xlsx"),))
+        print(files)
+        if len(files) > 0:
+            wrapped = ",".join(files)[0:35]+"..." if len(",".join(files)) > 40 else ",".join(files)
+            self.browse_spec.config(text=wrapped)
+            self.input_spec_gen_dir = os.path.dirname(files[0])
+            file_names = [os.path.basename(f).split(".xlsx")[0] for f in files]
+            self.input_spec_gen = [f.split("_")[0].rstrip(digits) for f in file_names]
+            self.append_message("Selected Specifications")
+            for spec in self.input_spec_gen:
+                self.append_message(spec)
+        else:
+            self.browse_spec.config(text="Select specification file(s)")
+            self.input_spec_gen_dir = ""
+            self.input_spec_gen = []
 
     def create_message(self):
         self.output_message = scrolledtext.ScrolledText(self.window, state="disabled", font=("Calibri", 12), relief="solid", borderwidth=1)
@@ -88,7 +120,7 @@ class UI:
         exec_btn.pack(expand=True, fill=tk.X, ipadx=10, ipady=10, padx=(4), pady=4)
 
     def browse(self):
-        self.filename = filedialog.askopenfilename(initialdir = "/", title = "Select a Template", filetypes = (("Excel Files", "*.xlsx"),))
+        self.filename = filedialog.askopenfilename(initialdir="/", title="Select a Template", filetypes=(("Excel Files", "*.xlsx"),))
         if len(self.filename) > 0:
             wrapped = self.filename[0:35]+"..." if len(self.filename) > 40 else self.filename
             self.browse_template.config(text=wrapped)
@@ -107,31 +139,45 @@ class UI:
         self.output_message.see(tk.END)
 
     def validate(self):
-        return (len(self.input_spec_str.get()) > 0 and os.path.exists(self.filename))
+        return len(self.input_spec_gen) > 0 and os.path.exists(self.filename)
 
     def get_validation_message(self):
-        if (len(self.input_spec_str.get()) == 0 and not os.path.exists(self.filename)):
+        if (len(self.input_spec_gen) == 0 and not os.path.exists(self.filename)):
             return "Select a valid template in xlsx format and enter specifications to start processing"
         elif not os.path.exists(self.filename):
             return "Select a valid template in xlsx format to start processing"
-        return "Enter specification to start processing"
+        return "Select a specification file to start processing"
 
     def popup_execute(self):
-        spec_gen = re.sub(r"\s+", "", self.input_spec_str.get().strip().upper(), flags=re.UNICODE)
-        message_text = "Do you want to create specifications: " + spec_gen + "?"
+#         spec_gen = re.sub(r"\s+", "", self.input_spec_str.get().strip().upper(), flags=re.UNICODE)
+        message_text = "Do you want to create specifications: " + ",".join(self.input_spec_gen) + "?"
         res=messagebox.askquestion("Specifications to be created", message_text)
         if res == "yes":
-            self.append_message("Specifications Entered: " + spec_gen)
             self.append_message("Starting Process: ")
-            spec = Spec(self.filename, self.input_spec_str.get(), self.append_message)
-            threading.Thread(target=spec.process).start()
-
+            app = AppThread(self.filename, self.input_spec_gen, self.append_message)
+            threading.Thread(target=app.process).start()
 
     def execute(self):
         if self.validate():
             self.popup_execute()
         else:
             self.append_message(self.get_validation_message())
+
+class AppThread:
+    def __init__(self, file_name, specifications, append_message):
+        self.template_name = file_name
+        self.specifications = specifications
+        self.append_message = append_message
+
+    def process(self):
+        threads = []
+        for spec_gen in self.specifications:
+            spec = Spec(self.template_name, spec_gen, self.append_message)
+            thread = threading.Thread(target=spec.process)
+            thread.start()
+            threads.append(thread)
+        for t in threads:
+            t.join()
 
 
 if __name__ == "__main__":
