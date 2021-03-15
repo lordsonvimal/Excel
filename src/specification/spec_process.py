@@ -7,10 +7,11 @@ from openpyxl.styles.borders import Border, Side
 import copy
 
 class Spec:
-    def __init__(self, file_path, spec_gen, append_message):
-        self.file_path = file_path
-        self.file_dir = os.path.dirname(file_path)
+    def __init__(self, template_file_path, spec_gen, spec_gen_dir, additional_domains, append_message):
+        self.file_path = template_file_path
+        self.file_dir = spec_gen_dir
         self.spec_gen = spec_gen
+        self.additional_domains = [domain.strip().upper() for domain in additional_domains if len(domain.strip()) > 0]
         self.domains = []
         self.message = append_message
         self.df_srdm = None
@@ -43,13 +44,14 @@ class Spec:
         self.df_srdm = pd.concat(df_srdm)
         self.domainlist = np.unique([x[:2] for x in self.df_srdm['SName'] if isinstance(x, str) and x.count('_') == 1]).tolist()
         self.domains = np.unique([x[:2] for x in self.df_srdm['SName'] if isinstance(x, str) and x.count('_') == 1]).tolist()
+        self.domains = self.domains + self.additional_domains
+
         self.df_srdm1 = self.df_srdm[((self.df_srdm['SName'].str.count('_')==1) | (self.df_srdm['V2'].str.contains('DTS'))) & (self.df_srdm['SType']!='Date')]
-
-
 
         unique_chars = lambda x: ' '.join(x.unique())
         unique_max = lambda x: x.max()
         self.df_srdm2 = self.df_srdm1.groupby('V0').agg({'SName': unique_chars,'SType': unique_chars,'SLabel': unique_chars, 'SLength':unique_max}).reset_index()
+        self.df_srdm2['VCount'] = self.df_srdm2['SName'].str.count(' ') + 1
         self.message("Domains Identified are: " + str(self.domains))
 
     def read_nextgen(self):
@@ -158,17 +160,23 @@ class Spec:
         if len(comm_files) > 0:
             file = os.path.join(self.file_dir, comm_files[0])
             self.df_vcom = pd.read_excel(file, sheet_name="COMM")
+            self.df_vcom_dict = {}
             for domain in self.domains:
                 self.df_com = copy.copy(self.df_vcom)
                 self.df_com['Domain'] = domain
                 self.df_com['Name'] = self.df_vcom['Name'].str.replace('__', domain)
-                self.df_vcom01.append(self.df_com)
+                self.df_com['ProgrammerRule'] = self.df_vcom['ProgrammerRule'].str.replace('&DSN', domain)
+#                 self.df_vcom01.append(self.df_com)
+                self.df_vcom_dict[domain] = self.df_com
         self.message("Successfully read comm file")
 
     def merge_data(self):
         self.message("Merging")
         self.s_sdtm = pd.merge(self.sdtm32_02, self.df_srdm2, left_on = 'Name', right_on='V0', how = 'left')
         self.s_sdtm.head()
+        pd.set_option("display.max_rows", None, "display.max_columns", None)
+        self.s_sdtm.VCount = self.s_sdtm.VCount.fillna(0.0).astype(int)
+        print(self.s_sdtm)
         self.message("Successfully merged data")
 
     def f(self, row):
@@ -284,4 +292,4 @@ class Spec:
             self.rule()
             self.save_sheet()
         except Exception as e:
-            self.append_message("Caught error: "+str(e))
+            self.message("[ERROR] "+str(e))

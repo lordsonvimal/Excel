@@ -6,6 +6,7 @@ from tkinter import messagebox
 import os, re
 import threading
 from string import digits
+from platform import system
 
 from src.specification.spec_process import Spec
 
@@ -13,6 +14,8 @@ window_width = 500
 window_height = 500
 
 exec_height = 50
+
+sys_platform = system()
 
 class App:
     def __init__(self, title):
@@ -31,12 +34,17 @@ class App:
         self.window.resizable(0, 0)
 
     def set_icon(self):
-        dirname = os.path.dirname(__file__)
-        self.window.iconbitmap(os.path.join(dirname, "icon.ico"))
+        logo = "icon.ico"
+        dir = os.path.dirname(__file__)
+#         img = tk.Image("photo", file="icon.gif")
+        if sys_platform == "Darwin":
+            logo = "icon.icns"
+#         self.window.iconphoto(True, img)
+#         self.window.tk.call('wm','iconphoto', self.window._w, img)
+        self.window.iconbitmap(logo)
 
     def run(self):
         self.window.mainloop()
-
 
 class UI:
     def __init__(self, app):
@@ -62,7 +70,7 @@ class UI:
         frame = tk.Frame(self.window, width=window_width, height=window_width-exec_height)
         frame.pack(expand=True, fill=tk.X)
 
-        self.input_file = tk.Label(frame, borderwidth=2, text="Select a template file", fg="#aaaaaa", font=("Calibri", 12))
+        self.input_file = tk.Label(frame, borderwidth=2, text="Select a template file*", fg="#aaaaaa", font=("Calibri", 12))
         self.input_file.grid(sticky=tk.N+tk.S+tk.W, row=0, column=0, padx=5, pady=5)
 
         self.browse_template = ttk.Button(frame, text="Select template file", command=self.browse, width=36)
@@ -74,7 +82,7 @@ class UI:
         frame = tk.Frame(self.window, width=window_width, height=window_width-exec_height)
         frame.pack(expand=True, fill=tk.X)
 
-        label = tk.Label(frame, borderwidth=2, justify=tk.LEFT, text="Select specifications files", fg="#aaaaaa", font=("Calibri", 12))
+        label = tk.Label(frame, borderwidth=2, justify=tk.LEFT, text="Select specifications files*", fg="#aaaaaa", font=("Calibri", 12))
         label.grid(sticky=tk.N+tk.S+tk.W, row=0, column=0, padx=5, pady=(0, 5), ipady=2)
 
         self.browse_spec = ttk.Button(frame, text="Select specification file(s)", command=self.browse_spec, width=36)
@@ -86,7 +94,7 @@ class UI:
         frame = tk.Frame(self.window, width=window_width, height=window_width-exec_height)
         frame.pack(expand=True, fill=tk.X)
 
-        label = tk.Label(frame, borderwidth=2, justify=tk.LEFT, text="Enter additional domain", fg="#aaaaaa", font=("Calibri", 12))
+        label = tk.Label(frame, borderwidth=2, justify=tk.LEFT, text="Enter additional domain (Optional)", fg="#aaaaaa", font=("Calibri", 12))
         label.grid(sticky=tk.N+tk.S+tk.W, row=0, column=0, padx=5, pady=(0, 5), ipady=2)
 
         self.input_domain = ttk.Entry(frame, width=38)
@@ -154,7 +162,10 @@ class UI:
         res=messagebox.askquestion("Specifications to be created", message_text)
         if res == "yes":
             self.append_message("Starting Process: ")
-            app = AppThread(self.filename, self.input_spec_gen, self.append_message)
+            domains = self.input_domain.get()
+            additional_domain = domains.split(",") if len(domains) > 0 else []
+            self.append_message(str(additional_domain))
+            app = AppThread(self.filename, self.input_spec_gen, self.input_spec_gen_dir, additional_domain, self.append_message)
             threading.Thread(target=app.process).start()
 
     def execute(self):
@@ -164,15 +175,17 @@ class UI:
             self.append_message(self.get_validation_message())
 
 class AppThread:
-    def __init__(self, file_name, specifications, append_message):
+    def __init__(self, file_name, specifications, spec_gen_dir, additional_domain, append_message):
         self.template_name = file_name
         self.specifications = specifications
+        self.spec_gen_dir = spec_gen_dir
+        self.additional_domain = additional_domain
         self.append_message = append_message
 
     def process(self):
         threads = []
         for spec_gen in self.specifications:
-            spec = Spec(self.template_name, spec_gen, self.append_message)
+            spec = Spec(self.template_name, spec_gen, self.spec_gen_dir, self.additional_domain, self.append_message)
             thread = threading.Thread(target=spec.process)
             thread.start()
             threads.append(thread)
