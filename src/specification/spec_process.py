@@ -174,18 +174,26 @@ class Spec:
         self.message("Merging")
         self.s_sdtm = pd.merge(self.sdtm32_02, self.df_srdm2, left_on = 'Name', right_on='V0', how = 'left')
         self.s_sdtm.head()
-        pd.set_option("display.max_rows", None, "display.max_columns", None)
         self.s_sdtm.VCount = self.s_sdtm.VCount.fillna(0.0).astype(int)
-        print(self.s_sdtm)
         self.message("Successfully merged data")
 
     def f(self, row):
+        val1 = ""
+        val2 = ""
         if row['Name'] == row['V0']:
+            if (pd.isnull(row['VCount'])):
+                return val1 + val2
             if np.logical_or(row['Type'] == row['SType'], row['Label'] == row['SLabel']):
-                val = "Rename " + row['SName'] + " as " + row['Name']+"|"+row['SName']
+                if row['VCount'] > 1:
+                    val2 = "Rename the corresponding Alias column raw variables as" + row['Name']+"|"+row['SName']
+                else:
+                    val1 = "Rename " + row['SName'] + " as " + row['Name']+"|"+row['SName']
             else:
-                val = "Direct Move from "+row['SName']+" to " + row['Name']+"|"+row['SName']
-            return val
+                if row['VCount'] > 1:
+                    val2 = "Direct move from the corresponding Alias column raw variables" +" to " + row['Name']+"|"+row['SName']
+                else:
+                    val1 = "Direct Move from "+row['SName']+" to " + row['Name']+"|"+row['SName']
+        return val1 + ',' + val2
 
     def rule(self):
         self.message("Running rules engine")
@@ -202,6 +210,63 @@ class Spec:
 
         self.s_sdtm[~self.s_sdtm['SOrgn'].isnull()]
         self.message("Rules engine ran successfully")
+
+    def apply_rule(self, row, domain, domain_df, check_col, source_col, dest_col, length, index):
+        if (row["Dataset"] == domain):
+            if (str(row[check_col]) == "nan"):
+                filtered_df = domain_df.loc[domain_df["Name"] == row["Name"]]
+                if len(filtered_df.index) > 0:
+                    return filtered_df.iloc[0][dest_col]
+            elif len(str(row[check_col]).split('|')) > length:
+                return str(row[check_col]).split('|')[index]
+        return row[source_col]
+
+    def rule_1(self):
+        self.s_sdtm['Temp'] = self.s_sdtm.apply(self.f, axis=1)
+        # s_sdtm[['PRuleSOrgn', 'PRuleAlias']] = s_sdtm.Temp.str.split(',',expand=True)
+        self.s_sdtm['PRuleSOrgn'] = self.s_sdtm.Temp.str.split(',',expand=True)[0]
+        self.s_sdtm['PRuleSOrgn'] = self.s_sdtm['PRuleSOrgn'].replace("", np.nan)
+        #s_sdtm['PRuleSOrgn'] = s_sdtm['PRuleSOrgn'].str.strip
+        self.s_sdtm['PRuleAlias'] = self.s_sdtm.Temp.str.split(',',expand=True)[1]
+        self.s_sdtm['PRuleAlias'] = self.s_sdtm['PRuleAlias'].replace("", np.nan)
+        # s_sdtm[~s_sdtm['PRuleSOrgn'].isnull()]
+        self.s_sdtm['PRule'] = ''
+        self.s_sdtm['SOrgn'] = ''
+        self.s_sdtm['SubCol'] = ''
+        self.s_sdtm['Length'] = ''
+        self.s_sdtm['SAlias'] = ''
+        pd.set_option("display.max_rows", None, "display.max_columns", None)
+        for domain in self.domains:
+            self.domain_df = self.df_vcom_dict[domain]
+#             self.s_sdtm['PRule'] = np.where(self.s_sdtm['Dataset'] == domain,
+#                                        np.where(
+#                                        self.s_sdtm['PRuleSOrgn'].isnull(),
+#                                        self.s_sdtm['Name'].map(self.domain_df.set_index('Name')['ProgrammerRule']),
+#                                        self.s_sdtm['PRuleSOrgn'].str.split('|', expand=True)[0]),
+#                                        self.s_sdtm['PRule'])
+            self.s_sdtm["PRule"] = self.s_sdtm.apply(self.apply_rule, axis=1, args=(domain, self.domain_df, "PRuleSOrgn", "PRule", "ProgrammerRule", 1, 0))
+            self.s_sdtm["SOrgn"] = self.s_sdtm.apply(self.apply_rule, axis=1, args=(domain, self.domain_df, "PRuleSOrgn", "SOrgn", "SRDMOrigin", 1, 1))
+            self.s_sdtm['SAlias'] = self.s_sdtm.apply(self.apply_rule, axis=1, args=(domain, self.domain_df, "PRuleAlias", "SAlias", "Alias", 1, 0))
+#             self.s_sdtm['SAlias'] = np.where(self.s_sdtm['Dataset'] == domain,np.where(
+#                                         self.s_sdtm['PRuleAlias'].isnull(),
+#                                         self.s_sdtm['Name'].map(self.domain_df.set_index('Name')['Alias']),
+#                                         self.s_sdtm['PRuleAlias'].str.split('|', expand=True)[0]),
+#                                         self.s_sdtm['SAlias'])
+#             self.s_sdtm['SOrgn'] = np.where(self.s_sdtm['Dataset'] == domain,
+#                                        np.where(
+#                                        self.s_sdtm['PRuleSOrgn'].isnull(),
+#                                        self.s_sdtm['Name'].map(self.domain_df.set_index('Name')['SRDMOrigin']),
+#                                        self.s_sdtm['PRuleSOrgn'].str.split('|', expand=True)[1]),
+#                                        self.s_sdtm['SOrgn'])
+            self.s_sdtm['SubCol'] = np.where(self.s_sdtm['Dataset'] == domain,
+                                        self.s_sdtm['Name'].map(self.domain_df.set_index('Name')['Submission']),
+                                        self.s_sdtm['SubCol'])
+            self.s_sdtm['Origin'] = np.where(self.s_sdtm['Dataset'] == domain,
+                                        self.s_sdtm['Name'].map(self.domain_df.set_index('Name')['Origin']),
+                                        self.s_sdtm['Origin'])
+            self.s_sdtm['Length'] = np.where(self.s_sdtm['Dataset'] == domain,
+                                        self.s_sdtm['Name'].map(self.domain_df.set_index('Name')['Length']),
+                                        self.s_sdtm['Length'])
 
     def save_sheet(self):
         self.message("Exporting. Please wait...")
@@ -231,27 +296,28 @@ class Spec:
             self.df['Length'] = self.df['Name'].map(self.df1.set_index('Name')['Length'])
             self.df_copy = self.df.copy(deep=True)
             self.df_copy['NgCore'] = self.df['Name'].map(self.sdtm32_02[self.sdtm32_02['Dataset'] == domain].set_index('Name')['Core'])
-            if not self.df.empty:
-                self.df.to_excel(self.writer, sheet_name=domain, index=False)
-                worksheet = self.writer.sheets[domain]
-                self.format_all_cells(worksheet, domain, "A", 20)
-                self.format_all_cells(worksheet, domain, "B", 40)
-                self.format_all_cells(worksheet, domain, "C", 20)
-                self.format_all_cells(worksheet, domain, "D", 20)
-                self.format_all_cells(worksheet, domain, "E", 12)
-                self.format_all_cells(worksheet, domain, "F", 12)
-                self.format_all_cells(worksheet, domain, "G", 15)
-                self.format_all_cells(worksheet, domain, "H", 12)
-                self.format_all_cells(worksheet, domain, "I", 12)
-                self.format_all_cells(worksheet, domain, "J", 12)
-                self.format_all_cells(worksheet, domain, "K", 12)
-                self.format_all_cells(worksheet, domain, "L", 40)
-                self.format_all_cells(worksheet, domain, "M", 12)
-                self.format_all_cells(worksheet, domain, "N", 20)
-                self.format_all_cells(worksheet, domain, "O", 12)
+
+            # Save with formatting
+            self.df.to_excel(self.writer, sheet_name=domain, index=False)
+            worksheet = self.writer.sheets[domain]
+            self.format_all_cells(worksheet, domain, "A", 20)
+            self.format_all_cells(worksheet, domain, "B", 40)
+            self.format_all_cells(worksheet, domain, "C", 20)
+            self.format_all_cells(worksheet, domain, "D", 20)
+            self.format_all_cells(worksheet, domain, "E", 12)
+            self.format_all_cells(worksheet, domain, "F", 12)
+            self.format_all_cells(worksheet, domain, "G", 15)
+            self.format_all_cells(worksheet, domain, "H", 12)
+            self.format_all_cells(worksheet, domain, "I", 12)
+            self.format_all_cells(worksheet, domain, "J", 12)
+            self.format_all_cells(worksheet, domain, "K", 12)
+            self.format_all_cells(worksheet, domain, "L", 40)
+            self.format_all_cells(worksheet, domain, "M", 12)
+            self.format_all_cells(worksheet, domain, "N", 20)
+            self.format_all_cells(worksheet, domain, "O", 12)
 #                 self.format_all_cells(worksheet, domain, "P", 20)
-                self.format_header_cells(worksheet)
-                self.format_core(worksheet)
+            self.format_header_cells(worksheet)
+            self.format_core(worksheet)
 
         self.writer.save()
         self.writer.close()
@@ -276,7 +342,7 @@ class Spec:
         for i, row in self.df_copy.iterrows():
             if row["NgCore"] == "Model Permissible":
                 cell = sheet.cell(row=i, column=11)
-                cell.fill = PatternFill(start_color="ff2d00", end_color="ff2d00", fill_type = "solid")
+                cell.fill = PatternFill(start_color="eeb3a5", end_color="eeb3a5", fill_type = "solid")
 
     def process(self):
         try:
@@ -289,7 +355,8 @@ class Spec:
     #         self.set_desired_columns()
             self.read_comm()
             self.merge_data()
-            self.rule()
+    #             self.rule()
+            self.rule_1()
             self.save_sheet()
         except Exception as e:
             self.message("[ERROR] "+str(e))

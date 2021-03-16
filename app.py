@@ -104,12 +104,12 @@ class UI:
 
     def browse_spec(self):
         files = filedialog.askopenfilenames(title="Choose specification files", filetypes=(("Excel Files", "*.xlsx"),))
-        print(files)
         if len(files) > 0:
-            wrapped = ",".join(files)[0:35]+"..." if len(",".join(files)) > 40 else ",".join(files)
+            file_names = [os.path.basename(f).split(".xlsx")[0] for f in files]
+            print(file_names)
+            wrapped = ",".join(file_names)[0:35]+"..." if len(",".join(file_names)) > 40 else ",".join(file_names)
             self.browse_spec.config(text=wrapped)
             self.input_spec_gen_dir = os.path.dirname(files[0])
-            file_names = [os.path.basename(f).split(".xlsx")[0] for f in files]
             self.input_spec_gen = [f.split("_")[0].rstrip(digits) for f in file_names]
             self.append_message("Selected Specifications")
             for spec in self.input_spec_gen:
@@ -130,9 +130,11 @@ class UI:
     def browse(self):
         self.filename = filedialog.askopenfilename(initialdir="/", title="Select a Template", filetypes=(("Excel Files", "*.xlsx"),))
         if len(self.filename) > 0:
-            wrapped = self.filename[0:35]+"..." if len(self.filename) > 40 else self.filename
+            basename = os.path.basename(self.filename).split(".xlsx")[0]
+            wrapped = basename[0:35]+"..." if len(basename) > 40 else basename
             self.browse_template.config(text=wrapped)
-            self.append_message("Selected File: " + self.filename)
+            self.append_message("Selected File: ")
+            self.append_message(basename)
         else:
             self.browse_template.config(text="Select Template")
 
