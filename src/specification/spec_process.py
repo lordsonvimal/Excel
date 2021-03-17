@@ -245,8 +245,9 @@ class Spec:
 #                                        self.s_sdtm['PRuleSOrgn'].str.split('|', expand=True)[0]),
 #                                        self.s_sdtm['PRule'])
             self.s_sdtm["PRule"] = self.s_sdtm.apply(self.apply_rule, axis=1, args=(domain, self.domain_df, "PRuleSOrgn", "PRule", "ProgrammerRule", 1, 0))
+            self.s_sdtm["PRule"] = self.s_sdtm.apply(self.apply_rule, axis=1, args=(domain, self.domain_df, "PRuleAlias", "PRule", "ProgrammerRule", 1, 0))
             self.s_sdtm["SOrgn"] = self.s_sdtm.apply(self.apply_rule, axis=1, args=(domain, self.domain_df, "PRuleSOrgn", "SOrgn", "SRDMOrigin", 1, 1))
-            self.s_sdtm['SAlias'] = self.s_sdtm.apply(self.apply_rule, axis=1, args=(domain, self.domain_df, "PRuleAlias", "SAlias", "Alias", 1, 0))
+            self.s_sdtm['SAlias'] = self.s_sdtm.apply(self.apply_rule, axis=1, args=(domain, self.domain_df, "PRuleAlias", "SAlias", "Alias", 1, 1))
 #             self.s_sdtm['SAlias'] = np.where(self.s_sdtm['Dataset'] == domain,np.where(
 #                                         self.s_sdtm['PRuleAlias'].isnull(),
 #                                         self.s_sdtm['Name'].map(self.domain_df.set_index('Name')['Alias']),
