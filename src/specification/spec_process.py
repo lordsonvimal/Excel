@@ -9,6 +9,7 @@ import copy
 class Spec:
     def __init__(self, template_file_path, spec_gen, spec_gen_dir, additional_domains, append_message):
         self.file_path = template_file_path
+        self.template_dir = os.path.dirname(template_file_path)
         self.file_dir = spec_gen_dir
         self.spec_gen = spec_gen
         self.additional_domains = [domain.strip().upper() for domain in additional_domains if len(domain.strip()) > 0]
@@ -56,7 +57,7 @@ class Spec:
 
     def read_nextgen(self):
         self.message("Reading NextGEN SDTM Metadata.xlsx")
-        file_path = os.path.join(self.file_dir, "NextGEN SDTM Metadata.xlsx")
+        file_path = os.path.join(self.template_dir, "NextGEN SDTM Metadata.xlsx")
         self.nextgen = pd.read_excel(file_path, sheet_name="Elements", usecols=['Order','Dataset','Name','Core'])
         self.nextgen = self.nextgen[self.nextgen['Dataset'].isin(self.domains)]
         self.nextgen.reset_index(drop=True)
@@ -65,7 +66,7 @@ class Spec:
 
     def read_sdtm_ig(self):
         self.message("Reading SDTMIG.xlsx")
-        file_path = os.path.join(self.file_dir, "SDTMIG.xlsx")
+        file_path = os.path.join(self.template_dir, "SDTMIG.xlsx")
         col_names = ['Version','Order','Class','Dataset','Vname','Name','Label','Type','CodeListRef','Role','Description','Core']
         self.sdtm32 = pd.read_excel(file_path, engine="openpyxl", sheet_name="SDTMIG v3.2",skiprows=1, names=col_names, usecols="A:L")
         self.sdtm33 = pd.read_excel(file_path, sheet_name="SDTMIG v3.3",skiprows=1, names=col_names, usecols="A:L")
@@ -73,7 +74,7 @@ class Spec:
 
     def read_sdtm_meta(self):
         self.message("Reading Consolidated Meta.xlsx")
-        file_path = os.path.join(self.file_dir, "Consolidated Meta.xlsx")
+        file_path = os.path.join(self.template_dir, "Consolidated Meta.xlsx")
         self.sdtm32 = pd.read_excel(file_path, sheet_name="P21SDTMIG3.2_Variables"
                                ,usecols=['Order','Dataset','Name','Label', 'Type', 'Core', 'Codelist', 'Origin'])
         self.sdtm32 = self.sdtm32[self.sdtm32.Core.isin(['Required', 'Expected', 'Permissible', 'Model Permissible'])]
@@ -155,7 +156,8 @@ class Spec:
 
     def read_comm(self):
         self.message("Reading COMM file")
-        comm_files = [filename for filename in os.listdir(self.file_dir) if filename.endswith('_COMM.xlsx')]
+        comm_files = [filename for filename in os.listdir(self.template_dir) if filename.endswith('_COMM.xlsx')]
+        self.message("Identified comm files are: "+str(comm_files))
         self.df_vcom01 = []
         if len(comm_files) > 0:
             file = os.path.join(self.file_dir, comm_files[0])
@@ -238,27 +240,10 @@ class Spec:
         pd.set_option("display.max_rows", None, "display.max_columns", None)
         for domain in self.domains:
             self.domain_df = self.df_vcom_dict[domain]
-#             self.s_sdtm['PRule'] = np.where(self.s_sdtm['Dataset'] == domain,
-#                                        np.where(
-#                                        self.s_sdtm['PRuleSOrgn'].isnull(),
-#                                        self.s_sdtm['Name'].map(self.domain_df.set_index('Name')['ProgrammerRule']),
-#                                        self.s_sdtm['PRuleSOrgn'].str.split('|', expand=True)[0]),
-#                                        self.s_sdtm['PRule'])
             self.s_sdtm["PRule"] = self.s_sdtm.apply(self.apply_rule, axis=1, args=(domain, self.domain_df, "PRuleSOrgn", "PRule", "ProgrammerRule", 1, 0))
             self.s_sdtm["PRule"] = self.s_sdtm.apply(self.apply_rule, axis=1, args=(domain, self.domain_df, "PRuleAlias", "PRule", "ProgrammerRule", 1, 0))
             self.s_sdtm["SOrgn"] = self.s_sdtm.apply(self.apply_rule, axis=1, args=(domain, self.domain_df, "PRuleSOrgn", "SOrgn", "SRDMOrigin", 1, 1))
             self.s_sdtm['SAlias'] = self.s_sdtm.apply(self.apply_rule, axis=1, args=(domain, self.domain_df, "PRuleAlias", "SAlias", "Alias", 1, 1))
-#             self.s_sdtm['SAlias'] = np.where(self.s_sdtm['Dataset'] == domain,np.where(
-#                                         self.s_sdtm['PRuleAlias'].isnull(),
-#                                         self.s_sdtm['Name'].map(self.domain_df.set_index('Name')['Alias']),
-#                                         self.s_sdtm['PRuleAlias'].str.split('|', expand=True)[0]),
-#                                         self.s_sdtm['SAlias'])
-#             self.s_sdtm['SOrgn'] = np.where(self.s_sdtm['Dataset'] == domain,
-#                                        np.where(
-#                                        self.s_sdtm['PRuleSOrgn'].isnull(),
-#                                        self.s_sdtm['Name'].map(self.domain_df.set_index('Name')['SRDMOrigin']),
-#                                        self.s_sdtm['PRuleSOrgn'].str.split('|', expand=True)[1]),
-#                                        self.s_sdtm['SOrgn'])
             self.s_sdtm['SubCol'] = np.where(self.s_sdtm['Dataset'] == domain,
                                         self.s_sdtm['Name'].map(self.domain_df.set_index('Name')['Submission']),
                                         self.s_sdtm['SubCol'])
@@ -275,17 +260,16 @@ class Spec:
         self.writer = pd.ExcelWriter(self.output_path, engine="openpyxl")
         self.writer.book = book
 #
-        for i in range(len(self.domains)):
-            domain = self.domains[i]
-            self.df = pd.DataFrame(columns=['Name','Description','CodeListRef','Label','Length','Sequence',
+        for domain in self.domains:
+            self.df = pd.DataFrame(columns=['Name','CodeListRef','Label','Length','Sequence',
                                                                   'Supplimentary','Comments', 'Type', 'Origin', 'Core',
                                                                   'ProgrammerRule', 'Submission', 'SRDMOrigin', 'Alias'])
             self.df1 = self.s_sdtm[self.s_sdtm['Dataset'] == domain]
             self.df['Name'] = self.sdtm32_02[self.sdtm32_02['Dataset'] == domain]['Name'].to_numpy()
-#             self.df['NgCore'] = self.df['Name'].map(self.nextgen[self.nextgen['Dataset'] == domain].set_index('Name')['Core'])
+#             self.df['NgCore'] = self.sdtm32_02[self.sdtm32_02['Dataset'] == domain]['Core'].to_numpy()
             self.df['Sequence'] = self.df['Name'].map(self.sdtm32_02[self.sdtm32_02['Dataset'] == domain].set_index('Name')['Order'])
 #             self.df['Description'] = self.df['Name'].map(self.df1.set_index('Name')['Description'])
-            self.df['Core'] = self.df['Name'].map(self.df1.set_index('Name')['Core'])
+            self.df['Core'] = self.sdtm32_02[self.sdtm32_02['Dataset'] == domain]['Core1'].to_numpy()
             self.df['CodeListRef'] = self.df['Name'].map(self.df1.set_index('Name')['CodeListRef'])
             self.df['Label'] = self.df['Name'].map(self.df1.set_index('Name')['Label'])
             self.df['Type'] = self.df['Name'].map(self.df1.set_index('Name')['Type'])
@@ -296,29 +280,30 @@ class Spec:
             self.df['Origin'] = self.df['Name'].map(self.df1.set_index('Name')['Origin'])
             self.df['Length'] = self.df['Name'].map(self.df1.set_index('Name')['Length'])
             self.df_copy = self.df.copy(deep=True)
-            self.df_copy['NgCore'] = self.df['Name'].map(self.sdtm32_02[self.sdtm32_02['Dataset'] == domain].set_index('Name')['Core'])
+            self.df_copy['NgCore'] = self.sdtm32_02[self.sdtm32_02['Dataset'] == domain]['Core'].to_numpy()
 
             # Save with formatting
             self.df.to_excel(self.writer, sheet_name=domain, index=False)
             worksheet = self.writer.sheets[domain]
             self.format_all_cells(worksheet, domain, "A", 20)
-            self.format_all_cells(worksheet, domain, "B", 40)
+#             self.format_all_cells(worksheet, domain, "B", 40)
+            self.format_all_cells(worksheet, domain, "B", 20)
             self.format_all_cells(worksheet, domain, "C", 20)
-            self.format_all_cells(worksheet, domain, "D", 20)
+            self.format_all_cells(worksheet, domain, "D", 12)
             self.format_all_cells(worksheet, domain, "E", 12)
-            self.format_all_cells(worksheet, domain, "F", 12)
-            self.format_all_cells(worksheet, domain, "G", 15)
+            self.format_all_cells(worksheet, domain, "F", 15)
+            self.format_all_cells(worksheet, domain, "G", 12)
             self.format_all_cells(worksheet, domain, "H", 12)
             self.format_all_cells(worksheet, domain, "I", 12)
             self.format_all_cells(worksheet, domain, "J", 12)
-            self.format_all_cells(worksheet, domain, "K", 12)
-            self.format_all_cells(worksheet, domain, "L", 40)
-            self.format_all_cells(worksheet, domain, "M", 12)
-            self.format_all_cells(worksheet, domain, "N", 20)
-            self.format_all_cells(worksheet, domain, "O", 12)
-#                 self.format_all_cells(worksheet, domain, "P", 20)
+            self.format_all_cells(worksheet, domain, "K", 40)
+            self.format_all_cells(worksheet, domain, "L", 12)
+            self.format_all_cells(worksheet, domain, "M", 20)
+            self.format_all_cells(worksheet, domain, "N", 12)
             self.format_header_cells(worksheet)
             self.format_core(worksheet)
+
+            worksheet.delete_cols(12, 2)
 
         self.writer.save()
         self.writer.close()
@@ -340,10 +325,13 @@ class Spec:
               cell.border = thin_border
 
     def format_core(self, sheet):
-        for i, row in self.df_copy.iterrows():
-            if row["NgCore"] == "Model Permissible":
-                cell = sheet.cell(row=i, column=11)
-                cell.fill = PatternFill(start_color="eeb3a5", end_color="eeb3a5", fill_type = "solid")
+        index = 0
+        for row in sheet.iter_rows():
+            if index != 0:
+                if self.df_copy["NgCore"].iloc[index - 1] == "Model Permissible":
+                    cell = row[9]
+                    cell.fill = PatternFill(start_color="eeb3a5", end_color="eeb3a5", fill_type = "solid")
+            index = index + 1
 
     def process(self):
         try:
