@@ -52,6 +52,22 @@ class Spec:
         unique_chars = lambda x: ' '.join(x.unique())
         unique_max = lambda x: x.max()
         self.df_srdm2 = self.df_srdm1.groupby('V0').agg({'SName': unique_chars,'SType': unique_chars,'SLabel': unique_chars, 'SLength':unique_max}).reset_index()
+
+        # Y_ rule
+        self.df_srdm3 = self.df_srdm[self.df_srdm['SName'].str.contains('^Y_[A-Z]{4,8}_[0-9]{3}$')]
+        if self.df_srdm3.shape[0] != 0:
+            c = list(self.df_srdm3)
+            self.df_srdm3[[c[6], c[4], c[5]]] = self.df_srdm3[[c[4], c[5], c[6]]]
+            self.df_srdm3['V0'] = self.df_srdm3['V0'].str.replace('^AP[A-Z]{2}|^[A-Z]{2}','__')
+            self.df_srdm3 = self.df_srdm3.iloc[:, [0,1,2,3,4]]
+            self.df_y_srdm = []
+            for domain in self.domains:
+                self.df_srdm31 = copy.copy(self.df_srdm3)
+                self.df_srdm31['V0'] = self.df_srdm3['V0'].str.replace('__', domain)
+                self.df_y_srdm.append(self.df_srdm31)
+            self.df_y_srdm = pd.concat(self.df_y_srdm)
+            self.df_srdm2 = self.df_srdm2.append(self.df_y_srdm).reset_index(drop=True)
+
         self.df_srdm2['VCount'] = self.df_srdm2['SName'].str.count(' ') + 1
         self.message("Domains Identified are: " + str(self.domains))
 
@@ -302,8 +318,6 @@ class Spec:
             self.format_all_cells(worksheet, domain, "N", 12)
             self.format_header_cells(worksheet)
             self.format_core(worksheet)
-
-            worksheet.delete_cols(12, 2)
 
         self.writer.save()
         self.writer.close()
